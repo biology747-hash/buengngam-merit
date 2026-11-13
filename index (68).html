@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบันทึกความดีของนักเรียน - โรงเรียนบึงงามพัฒนา</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        emerald: {
+                            800: '#065f46',
+                            900: '#064e3b',
+                            950: '#022c22',
+                        },
+                        gold: {
+                            400: '#fbbf24',
+                            500: '#facc15',
+                            600: '#ca8a04',
+                        }
+                    },
+                    fontFamily: {
+                        prompt: ['Prompt', 'sans-serif'],
+                        sarabun: ['Sarabun', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Google Fonts: Prompt & Sarabun -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Alpine.js (Lightweight UI Reactive State) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.FirebaseModule = {
+            initializeApp, getApps, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+            getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, setDoc
+        };
+    </script>
+
+    <style>
+        body {
+            font-family: 'Prompt', 'Sarabun', sans-serif;
+            background-color: #f8fafc;
+        }
+        .certificate-border {
+            border: 12px double #064e3b;
+            outline: 3px solid #facc15;
+            outline-offset: -8px;
+        }
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printable-certificate, #printable-certificate * {
+                visibility: visible;
+            }
+            #printable-certificate {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 20px;
+                box-shadow: none;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+        .bg-pattern {
+            background-color: #064e3b;
+            background-image: radial-gradient(#10b981 0.75px, transparent 0.75px), radial-gradient(#10b981 0.75px, #064e3b 0.75px);
+            background-size: 30px 30px;
+            background-position: 0 0, 15px 15px;
+            background-opacity: 0.1;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between text-slate-800" x-data="meritApp()" x-init="initApp()">
+
+    <!-- TOP HEADER -->
+    <header class="bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-800 text-white shadow-lg border-b-4 border-gold-500 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
+            
+            <!-- Logo & Title -->
+            <div class="flex items-center gap-3">
+                <!-- สพฐ. Logo SVG Vector -->
+                <div class="w-14 h-14 bg-white/10 rounded-full p-1.5 backdrop-blur border border-gold-400/40 flex items-center justify-center shadow-inner flex-shrink-0">
+                    <svg viewBox="0 0 100 100" class="w-full h-full">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="#facc15" stroke-width="3"/>
+                        <path d="M50 10 L60 30 L80 30 L65 45 L72 68 L50 52 L28 68 L35 45 L20 30 L40 30 Z" fill="#facc15" />
+                        <circle cx="50" cy="45" r="14" fill="#064e3b" stroke="#ffffff" stroke-width="2"/>
+                        <text x="50" y="49" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle" font-family="Prompt">สพฐ.</text>
+                        <path d="M 25 78 Q 50 92 75 78" fill="none" stroke="#facc15" stroke-width="3" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                        ระบบบันทึกความดีของนักเรียน
+                        <span class="text-xs bg-gold-500 text-emerald-950 font-semibold px-2.5 py-0.5 rounded-full shadow-sm">v2.5 Cloud</span>
+                    </h1>
+                    <p class="text-xs sm:text-sm text-emerald-100 flex items-center gap-1.5 font-light">
+                        <i class="fa-solid font-normal fa-school text-gold-400"></i>
+                        <span>โรงเรียนบึงงามพัฒนา</span>
+                        <span class="text-emerald-400">•</span>
+                        <span class="text-emerald-200">สังกัดสำนักงานเขตพื้นที่การศึกษาประถมศึกษาเขต 1</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Connection Status & Cloud Controls -->
+            <div class="flex items-center gap-3 w-full md:w-auto justify-end">
+                <!-- Status Badge -->
+                <div class="flex items-center gap-2 bg-emerald-950/70 border border-emerald-700/60 px-3 py-1.5 rounded-xl text-xs">
+                    <span class="relative flex h-2.5 w-2.5">
+                      <span x-show="cloudConnected" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2.5 w-2.5" :class="cloudConnected ? 'bg-emerald-400' : 'bg-amber-400'"></span>
+                    </span>
+                    <span x-text="cloudConnected ? 'ซิงค์ข้อมูล Cloud เรียลไทม์' : 'โหมดสาธิต (Local Demo)'" class="font-medium text-emerald-100"></span>
+                </div>
+
+                <!-- Config Modal Trigger Button -->
+                <button @click="showConfigModal = true" class="bg-emerald-800 hover:bg-emerald-700 text-gold-400 hover:text-white border border-gold-500/40 px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>ตั้งค่า Cloud Sync</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN ROLE & NAVIGATION BAR -->
+    <div class="bg-white border-b border-slate-200 shadow-sm sticky top-[74px] z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            
+            <!-- Current Role Switcher Buttons -->
+            <div class="flex items-center bg-slate-100 p-1 rounded-2xl w-full sm:w-auto justify-center">
+                <button @click="setRole('student')" :class="currentRole === 'student' ? 'bg-emerald-900 text-white shadow-md' : 'text-slate-600 hover:text-emerald-900'" class="px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-user-graduate" :class="currentRole === 'student' ? 'text-gold-400' : ''"></i>
+                    <span>นักเรียน</span>
+                </button>
+                <button @click="setRole('teacher')" :class="currentRole === 'teacher' ? 'bg-emerald-900 text-white shadow-md' : 'text-slate-600 hover:text-emerald-900'" class="px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-chalkboard-user" :class="currentRole === 'teacher' ? 'text-gold-400' : ''"></i>
+                    <span>คุณครู</span>
+                </button>
+                <button @click="setRole('director')" :class="currentRole === 'director' ? 'bg-emerald-900 text-white shadow-md' : 'text-slate-600 hover:text-emerald-900'" class="px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-award" :class="currentRole === 'director' ? 'text-gold-400' : ''"></i>
+                    <span>ผอ.โรงเรียน</span>
+                </button>
+            </div>
+
+            <!-- Profile Info Widget -->
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full cursor-pointer hover:bg-slate-100 transition" @click="openProfileModal()">
+                    <img :src="activeProfile.avatar" class="w-8 h-8 rounded-full object-cover border border-emerald-600 shadow-sm" alt="Profile">
+                    <div class="text-left leading-tight">
+                        <div class="text-xs font-bold text-slate-800" x-text="activeProfile.name"></div>
+                        <div class="text-[10px] text-emerald-800 font-medium" x-text="getRoleLabel(currentRole)"></div>
+                    </div>
+                    <i class="fa-solid fa-pen-to-square text-xs text-slate-400 ml-1"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTENT BODY -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
+
+        <!-- ================= STUDENT ROLE ================= -->
+        <div x-show="currentRole === 'student'" class="space-y-6">
+            
+            <!-- Banner Notification -->
+            <div class="bg-gradient-to-r from-emerald-900 to-emerald-800 text-white p-6 rounded-3xl shadow-md relative overflow-hidden">
+                <div class="relative z-10">
+                    <h2 class="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                        <span>ยินดีต้อนรับ, </span>
+                        <span x-text="activeProfile.name" class="text-gold-400"></span> 🌟
+                    </h2>
+                    <p class="text-sm text-emerald-100 mt-1">มาร่วมสร้างสรรค์สังคมน่าอยู่ด้วยการบันทึกความดีของคุณวันนี้ สะสมคะแนนเพื่อรับเกียรติบัตรเชิดชูเกียรติ!</p>
+                </div>
+                <i class="fa-solid fa-star text-white/5 text-9xl absolute -right-6 -bottom-8"></i>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Record Form -->
+                <div class="lg:col-span-1 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                    <h3 class="text-lg font-bold text-emerald-950 flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <i class="fa-solid fa-circle-plus text-emerald-700"></i>
+                        <span>บันทึกความดีใหม่</span>
+                    </h3>
+
+                    <form @submit.prevent="saveMerit()" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">หัวข้อความดี / กิจกรรม *</label>
+                            <input type="text" x-model="form.title" placeholder="เช่น เก็บกระเป๋าสตางค์ส่งคืนเจ้าของ" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-700 text-sm">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">หมวดหมู่ *</label>
+                                <select x-model="form.category" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-700 text-sm">
+                                    <option value="ซื่อสัตย์สุจริต">ซื่อสัตย์สุจริต</option>
+                                    <option value="จิตสาธารณะ/บำเพ็ญประโยชน์">จิตสาธารณะ/บำเพ็ญประโยชน์</option>
+                                    <option value="กตัญญูกตเวที">กตัญญูกตเวที</option>
+                                    <option value="มีวินัยและรับผิดชอบ">มีวินัยและรับผิดชอบ</option>
+                                    <option value="ช่วยเหลือผู้อื่น">ช่วยเหลือผู้อื่น</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">วันที่ทำความดี *</label>
+                                <input type="date" x-model="form.date" required class="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-700 text-sm">
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-xs font-semibold text-slate-700">รายละเอียดความดี</label>
+                                <!-- AI Helper Button -->
+                                <button type="button" @click="aiEnhanceText()" class="text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-1 rounded-lg font-medium transition flex items-center gap-1">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-amber-600"></i>
+                                    <span>AI ช่วยเรียบเรียง</span>
+                                </button>
+                            </div>
+                            <textarea x-model="form.detail" rows="3" placeholder="อธิบายรายละเอียด สิ่งที่ได้ทำ และความรู้สึก..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-700 text-sm"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">แนบรูปภาพหลักฐาน (ถ้ามี)</label>
+                            <input type="file" @change="handleFileUpload($event)" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-800 hover:file:bg-emerald-100">
+                            
+                            <template x-if="form.image">
+                                <div class="mt-2 relative">
+                                    <img :src="form.image" class="w-full h-32 object-cover rounded-xl border border-slate-200">
+                                    <button type="button" @click="form.image = ''" class="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </template>
+                        </div>
+
+                        <button type="submit" :disabled="isSubmitting" class="w-full bg-emerald-900 hover:bg-emerald-800 text-white font-semibold py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm">
+                            <i class="fa-solid fa-paper-plane text-gold-400"></i>
+                            <span x-text="isSubmitting ? 'กำลังบันทึก...' : 'บันทึกความดี'"></span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- My Merits List -->
+                <div class="lg:col-span-2 space-y-4">
+                    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-slate-800">ประวัติบันทึกความดีของฉัน</h3>
+                                <p class="text-xs text-slate-500">รวมรายการความดีที่บันทึกไว้ในระบบ</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-2 rounded-2xl text-center">
+                                <div class="text-xs font-medium">คะแนนรวมความดี</div>
+                                <div class="text-xl font-bold text-emerald-800" x-text="calculateStudentPoints() + ' คะแนน'"></div>
+                            </div>
+                        </div>
+
+                        <!-- Card List -->
+                        <div class="space-y-3">
+                            <template x-for="item in merits.filter(m => m.studentName === activeProfile.name)" :key="item.id">
+                                <div class="border border-slate-200 rounded-2xl p-4 hover:border-emerald-300 transition bg-slate-50/50 space-y-3">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <span class="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 text-emerald-900 mb-1" x-text="item.category"></span>
+                                            <h4 class="font-bold text-slate-900 text-base" x-text="item.title"></h4>
+                                            <p class="text-xs text-slate-500 mt-0.5"><i class="fa-regular fa-calendar mr-1"></i><span x-text="formatDate(item.date)"></span></p>
+                                        </div>
+                                        <div>
+                                            <!-- Status Tag -->
+                                            <span x-html="getStatusBadge(item.status)"></span>
+                                        </div>
+                                    </div>
+
+                                    <p class="text-sm text-slate-700 bg-white p-3 rounded-xl border border-slate-100" x-text="item.detail || 'ไม่มีรายละเอียดเพิ่มเติม'"></p>
+
+                                    <!-- Image Preview -->
+                                    <template x-if="item.image">
+                                        <div>
+                                            <img :src="item.image" @click="openImageModal(item.image)" class="h-24 rounded-lg object-cover cursor-pointer hover:opacity-90 border border-slate-200">
+                                        </div>
+                                    </template>
+
+                                    <!-- Teacher / Director Comments -->
+                                    <template x-if="item.teacherComment">
+                                        <div class="text-xs bg-amber-50 border border-amber-200 text-amber-900 p-2.5 rounded-xl flex items-start gap-2">
+                                            <i class="fa-solid fa-comment-dots text-amber-600 mt-0.5"></i>
+                                            <div>
+                                                <span class="font-bold">ข้อเสนอแนะคุณครู:</span> <span x-text="item.teacherComment"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template x-if="merits.filter(m => m.studentName === activeProfile.name).length === 0">
+                                <div class="text-center py-12 text-slate-400">
+                                    <i class="fa-solid fa-box-open text-4xl mb-2 text-slate-300"></i>
+                                    <p class="text-sm">ยังไม่มีรายการบันทึกความดี เริ่มบันทึกความดีรายการแรกของคุณได้เลย!</p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TEACHER ROLE ================= -->
+        <div x-show="currentRole === 'teacher'" class="space-y-6">
+            <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-emerald-950 flex items-center gap-2">
+                            <i class="fa-solid fa-clipboard-check text-emerald-700"></i>
+                            <span>รายการบันทึกความดีของนักเรียนรอการตรวจสอบ</span>
+                        </h2>
+                        <p class="text-xs text-slate-500">ตรวจสอบความถูกต้อง ให้ข้อเสนอแนะ และกดรับรองความดี</p>
+                    </div>
+
+                    <!-- Filter Tabs -->
+                    <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl text-xs">
+                        <button @click="teacherFilter = 'all'" :class="teacherFilter === 'all' ? 'bg-white shadow font-bold text-slate-900' : 'text-slate-600'" class="px-3 py-1.5 rounded-lg transition">ทั้งหมด</button>
+                        <button @click="teacherFilter = 'pending'" :class="teacherFilter === 'pending' ? 'bg-white shadow font-bold text-slate-900' : 'text-slate-600'" class="px-3 py-1.5 rounded-lg transition">รอดำเนินการ</button>
+                        <button @click="teacherFilter = 'verified'" :class="teacherFilter === 'verified' ? 'bg-white shadow font-bold text-slate-900' : 'text-slate-600'" class="px-3 py-1.5 rounded-lg transition">ครูรับรองแล้ว</button>
+                    </div>
+                </div>
+
+                <!-- Teacher List Table / Cards -->
+                <div class="space-y-4">
+                    <template x-for="item in filteredTeacherMerits" :key="item.id">
+                        <div class="border border-slate-200 rounded-2xl p-5 bg-white hover:border-emerald-300 transition shadow-sm space-y-4">
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-900 font-bold flex items-center justify-center text-sm border border-emerald-300" x-text="item.studentName ? item.studentName.charAt(0) : 'น'"></div>
+                                    <div>
+                                        <div class="font-bold text-slate-900 text-base" x-text="item.studentName"></div>
+                                        <div class="text-xs text-slate-500">ชั้นมัธยมศึกษา • วันที่ทำ: <span x-text="formatDate(item.date)"></span></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200" x-text="item.category"></span>
+                                    <span x-html="getStatusBadge(item.status)"></span>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="md:col-span-2 space-y-2">
+                                    <h4 class="font-bold text-slate-800" x-text="item.title"></h4>
+                                    <p class="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100" x-text="item.detail || 'ไม่มีรายละเอียดเพิ่มเติม'"></p>
+                                </div>
+                                <template x-if="item.image">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">รูปหลักฐาน:</label>
+                                        <img :src="item.image" @click="openImageModal(item.image)" class="h-28 w-full object-cover rounded-xl cursor-pointer hover:opacity-90 border border-slate-200">
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Teacher Action Section -->
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                                <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                    <i class="fa-solid fa-comment-pen text-emerald-700"></i>
+                                    <span>ความเห็น / ข้อเสนอแนะของคุณครู:</span>
+                                </div>
+                                <input type="text" x-model="item.tempComment" placeholder="ใส่ข้อความเสนอแนะ หรือคำชมเชย..." class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700">
+
+                                <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
+                                    <button @click="updateStatus(item.id, 'rejected', item.tempComment)" class="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
+                                        <i class="fa-solid fa-rotate-left"></i>
+                                        <span>ส่งกลับแก้ไข</span>
+                                    </button>
+                                    <button @click="updateStatus(item.id, 'verified', item.tempComment)" class="px-5 py-2 bg-emerald-900 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
+                                        <i class="fa-solid fa-circle-check text-gold-400"></i>
+                                        <span>รับรองความดี</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <template x-if="filteredTeacherMerits.length === 0">
+                        <div class="text-center py-12 text-slate-400">
+                            <i class="fa-solid fa-folder-open text-4xl mb-2 text-slate-300"></i>
+                            <p class="text-sm">ไม่มีรายการในหมวดหมู่นี้</p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= DIRECTOR ROLE ================= -->
+        <div x-show="currentRole === 'director'" class="space-y-6">
+            
+            <!-- Dashboard Stats Overview -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-heart-circle-check"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-500">บันทึกความดีทั้งหมด</div>
+                        <div class="text-2xl font-bold text-slate-900" x-text="merits.length"></div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-blue-100 text-blue-800 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-user-check"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-500">ครูรับรองแล้ว</div>
+                        <div class="text-2xl font-bold text-slate-900" x-text="merits.filter(m => m.status === 'verified').length"></div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-gold-400/20 text-gold-600 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-award"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-500">ผอ.อนุมัติแล้ว</div>
+                        <div class="text-2xl font-bold text-slate-900" x-text="merits.filter(m => m.status === 'approved').length"></div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-slate-500">นักเรียนทั้งหมด</div>
+                        <div class="text-2xl font-bold text-slate-900" x-text="getUniqueStudentsCount()"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Director Approval & Certificate Table -->
+            <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-emerald-950 flex items-center gap-2">
+                            <i class="fa-solid fa-stamp text-gold-600"></i>
+                            <span>การอนุมัติขั้นสูงสุดและออกเกียรติบัตร</span>
+                        </h2>
+                        <p class="text-xs text-slate-500">รายการความดีที่ผ่านการตรวจสอบจากครูแล้ว พร้อมรับการอนุมัติและออกเกียรติบัตรดิจิทัล</p>
+                    </div>
+                </div>
+
+                <!-- Merits Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="bg-slate-50 text-xs font-bold text-slate-700 uppercase">
+                            <tr>
+                                <th class="px-4 py-3 rounded-l-xl">ชื่อนักเรียน</th>
+                                <th class="px-4 py-3">หัวข้อความดี</th>
+                                <th class="px-4 py-3">หมวดหมู่</th>
+                                <th class="px-4 py-3">วันที่ทำ</th>
+                                <th class="px-4 py-3">สถานะ</th>
+                                <th class="px-4 py-3 text-right rounded-r-xl">ดำเนินการ</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <template x-for="item in merits" :key="item.id">
+                                <tr class="hover:bg-slate-50/80 transition">
+                                    <td class="px-4 py-3.5 font-bold text-slate-900" x-text="item.studentName"></td>
+                                    <td class="px-4 py-3.5" x-text="item.title"></td>
+                                    <td class="px-4 py-3.5">
+                                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800" x-text="item.category"></span>
+                                    </td>
+                                    <td class="px-4 py-3.5 text-xs text-slate-500" x-text="formatDate(item.date)"></td>
+                                    <td class="px-4 py-3.5" x-html="getStatusBadge(item.status)"></td>
+                                    <td class="px-4 py-3.5 text-right space-x-2">
+                                        <template x-if="item.status === 'verified'">
+                                            <button @click="updateStatus(item.id, 'approved')" class="px-3 py-1.5 bg-emerald-900 text-white rounded-lg text-xs font-semibold hover:bg-emerald-800 transition">
+                                                <i class="fa-solid fa-circle-check text-gold-400 mr-1"></i>อนุมัติ
+                                            </button>
+                                        </template>
+                                        <template x-if="item.status === 'approved'">
+                                            <button @click="generateCertificate(item)" class="px-3 py-1.5 bg-gold-500 text-emerald-950 rounded-lg text-xs font-bold hover:bg-gold-400 transition shadow-sm">
+                                                <i class="fa-solid fa-award mr-1"></i>พิมพ์เกียรติบัตร
+                                            </button>
+                                        </template>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-emerald-950 text-white border-t-4 border-gold-500 mt-12 py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-2">
+            <p class="text-sm font-medium text-emerald-100">
+                ระบบบันทึกความดีของนักเรียน • โรงเรียนบึงงามพัฒนา
+            </p>
+            <p class="text-xs text-emerald-400 font-light">
+                สังกัดสำนักงานเขตพื้นที่การศึกษาประถมศึกษาเขต 1
+            </p>
+            <div class="pt-2 text-xs text-gold-400 font-semibold border-t border-emerald-900 max-w-md mx-auto">
+                <i class="fa-solid fa-code mr-1"></i> พัฒนาโดย นายวรายุทธ โพธิ์ลา ครูภูธร
+            </div>
+        </div>
+    </footer>
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- 1. CLOUD CONFIG MODAL -->
+    <div x-show="showConfigModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+        <div @click.away="showConfigModal = false" class="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden space-y-4 p-6">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="text-lg font-bold text-emerald-950 flex items-center gap-2">
+                    <i class="fa-solid fa-cloud-gear text-emerald-700"></i>
+                    <span>ตั้งค่าเชื่อมต่อฐานข้อมูล Firebase Cloud</span>
+                </h3>
+                <button @click="showConfigModal = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <div class="space-y-3 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <div class="font-bold text-slate-800 text-sm">วิธีเชื่อมต่อฐานข้อมูลออนไลน์ใน 3 ขั้นตอน:</div>
+                <ol class="list-decimal list-inside space-y-1">
+                    <li>ไปที่เว็บไซต์ <a href="https://console.firebase.google.com" target="_blank" class="text-emerald-700 underline font-semibold">Firebase Console</a> แล้วสร้าง Project ฟรี</li>
+                    <li>เพิ่ม Web App และคัดลอกข้อความ <code class="bg-white px-1 rounded border">firebaseConfig</code></li>
+                    <li>นำโค้ด JSON มาวางในช่องด้านล่างนี้แล้วกดปุ่มบันทึก</li>
+                </ol>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">วาง Firebase Config (JSON Format)</label>
+                <textarea x-model="customFirebaseConfig" rows="6" placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "your-app.firebaseapp.com",
+  "projectId": "your-app",
+  "storageBucket": "your-app.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:123456789:web:abc"
+}' class="w-full font-mono text-xs p-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-700"></textarea>
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+                <button @click="clearFirebaseConfig()" class="text-xs text-rose-600 hover:underline">รีเซ็ตกลับเป็น Local Demo</button>
+                <div class="flex gap-2">
+                    <button @click="showConfigModal = false" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold">ยกเลิก</button>
+                    <button @click="saveFirebaseConfig()" class="px-5 py-2 bg-emerald-900 text-white rounded-xl text-xs font-semibold hover:bg-emerald-800 transition shadow-sm">บันทึกและเชื่อมต่อ</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. EDIT PROFILE MODAL -->
+    <div x-show="showProfileModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+        <div @click.away="showProfileModal = false" class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 space-y-4">
+            <h3 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
+                <i class="fa-solid fa-user-pen text-emerald-700"></i>
+                <span>แก้ไขข้อมูลโปรไฟล์ (<span x-text="getRoleLabel(currentRole)"></span>)</span>
+            </h3>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อ-นามสกุล *</label>
+                    <input type="text" x-model="activeProfile.name" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">รูปโปรไฟล์ (URL ภาพ หรืออัปโหลด)</label>
+                    <input type="text" x-model="activeProfile.avatar" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700 mb-2">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2">
+                <button @click="showProfileModal = false" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold">ปิด</button>
+                <button @click="saveProfile()" class="px-5 py-2 bg-emerald-900 text-white rounded-xl text-xs font-semibold">บันทึกโปรไฟล์</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. IMAGE PREVIEW MODAL -->
+    <div x-show="showImageModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak @click="showImageModal = false">
+        <div class="relative max-w-3xl w-full">
+            <img :src="modalImage" class="max-h-[85vh] w-auto mx-auto rounded-2xl shadow-2xl object-contain border-2 border-white">
+            <button @click="showImageModal = false" class="absolute top-2 right-2 bg-white/20 hover:bg-white/40 text-white w-9 h-9 rounded-full flex items-center justify-center"><i class="fa-solid fa-xmark text-xl"></i></button>
+        </div>
+    </div>
+
+    <!-- 4. DIGITAL CERTIFICATE MODAL -->
+    <div x-show="showCertModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" x-cloak>
+        <div class="bg-white w-full max-w-4xl rounded-3xl p-6 space-y-4 my-8">
+            <div class="flex items-center justify-between no-print border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-800 text-lg">เกียรติบัตรดิจิทัลฉบับสมบูรณ์</h3>
+                <div class="flex gap-2">
+                    <button @click="window.print()" class="px-4 py-2 bg-emerald-900 text-gold-400 font-bold rounded-xl text-xs hover:bg-emerald-800 transition flex items-center gap-1.5 shadow-md">
+                        <i class="fa-solid fa-print"></i>
+                        <span>สั่งพิมพ์ / บันทึก PDF</span>
+                    </button>
+                    <button @click="showCertModal = false" class="px-3 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">ปิด</button>
+                </div>
+            </div>
+
+            <!-- CERTIFICATE DISPLAY AREA -->
+            <div id="printable-certificate" class="certificate-border bg-white p-8 sm:p-12 text-center relative overflow-hidden bg-pattern shadow-lg rounded-xl">
+                
+                <!-- Watermark Logo -->
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5">
+                    <svg viewBox="0 0 100 100" class="w-96 h-96">
+                        <circle cx="50" cy="50" r="45" fill="#064e3b"/>
+                    </svg>
+                </div>
+
+                <div class="relative z-10 space-y-6">
+                    <!-- OBEC Logo -->
+                    <div class="flex justify-center">
+                        <div class="w-20 h-20 bg-white rounded-full p-2 border-2 border-gold-500 shadow-md">
+                            <svg viewBox="0 0 100 100" class="w-full h-full">
+                                <circle cx="50" cy="50" r="45" fill="none" stroke="#facc15" stroke-width="3"/>
+                                <path d="M50 10 L60 30 L80 30 L65 45 L72 68 L50 52 L28 68 L35 45 L20 30 L40 30 Z" fill="#facc15" />
+                                <circle cx="50" cy="45" r="14" fill="#064e3b" stroke="#ffffff" stroke-width="2"/>
+                                <text x="50" y="49" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle" font-family="Prompt">สพฐ.</text>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h2 class="text-xl sm:text-2xl font-bold text-emerald-950 font-sarabun tracking-wide">โรงเรียนบึงงามพัฒนา</h2>
+                        <p class="text-xs text-slate-600 font-sarabun">สำนักงานเขตพื้นที่การศึกษาประถมศึกษาเขต 1</p>
+                        <p class="text-sm font-semibold text-gold-600 mt-1 uppercase tracking-widest font-prompt">เกียรติบัตรฉบับนี้ให้ไว้เพื่อแสดงว่า</p>
+                    </div>
+
+                    <div class="py-2">
+                        <h1 class="text-2xl sm:text-4xl font-bold text-emerald-900 font-sarabun border-b-2 border-gold-500 inline-block px-8 py-1" x-text="certData.studentName"></h1>
+                    </div>
+
+                    <p class="text-sm text-slate-700 max-w-2xl mx-auto font-sarabun leading-relaxed">
+                        ได้ประกอบความดีความชอบ หมวดหมู่ <span class="font-bold text-emerald-900" x-text="certData.category"></span> <br>
+                        เรื่อง <span class="font-bold text-emerald-900">"<span x-text="certData.title"></span>"</span> <br>
+                        สมควรได้รับยกย่องเชิดชูเกียรติ เพื่อเป็นแบบอย่างที่ดีแก่สังคมและสืบไป
+                    </p>
+
+                    <div class="pt-8 grid grid-cols-2 gap-8 items-end max-w-xl mx-auto">
+                        <div class="text-center space-y-1">
+                            <div class="text-[10px] text-slate-400">รหัสตรวจสอบเกียรติบัตร:</div>
+                            <div class="font-mono text-xs font-bold text-emerald-900" x-text="'CERT-' + Math.floor(100000 + Math.random() * 900000)"></div>
+                        </div>
+
+                        <div class="text-center space-y-1">
+                            <!-- Director Signature Line -->
+                            <div class="font-sarabun font-bold text-slate-800 border-b border-dotted border-slate-400 pb-1 italic text-lg" x-text="profiles.director.name"></div>
+                            <div class="text-xs font-semibold text-emerald-950 font-sarabun">ผู้อำนวยการโรงเรียนบึงงามพัฒนา</div>
+                            <div class="text-[11px] text-slate-500 font-sarabun" x-text="'ให้ไว้ ณ วันที่ ' + formatDate(new Date().toISOString())"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        function meritApp() {
+            return {
+                currentRole: 'student', // student, teacher, director
+                cloudConnected: false,
+                showConfigModal: false,
+                showProfileModal: false,
+                showImageModal: false,
+                showCertModal: false,
+                modalImage: '',
+                isSubmitting: false,
+                teacherFilter: 'all',
+
+                // Custom Firebase Config JSON string
+                customFirebaseConfig: '',
+
+                // Profiles
+                profiles: {
+                    student: { name: 'เด็กชายสมชาย ดีเยี่ยม', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80' },
+                    teacher: { name: 'คุณครูวรายุทธ โพธิ์ลา', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80' },
+                    director: { name: 'นายดรุณ บุญส่ง (ผอ.โรงเรียน)', avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80' }
+                },
+
+                activeProfile: { name: '', avatar: '' },
+
+                // Form Data
+                form: {
+                    title: '',
+                    category: 'ซื่อสัตย์สุจริต',
+                    date: new Date().toISOString().split('T')[0],
+                    detail: '',
+                    image: ''
+                },
+
+                // Certificate Data
+                certData: {},
+
+                // Main Merits Collection
+                merits: [],
+
+                initApp() {
+                    this.activeProfile = { ...this.profiles[this.currentRole] };
+                    
+                    // Load Saved Config if exists
+                    const savedConfig = localStorage.getItem('buengngam_firebase_config');
+                    if (savedConfig) {
+                        this.customFirebaseConfig = savedConfig;
+                        this.initFirebase(JSON.parse(savedConfig));
+                    } else {
+                        this.loadLocalDemoData();
+                    }
+                },
+
+                setRole(role) {
+                    this.currentRole = role;
+                    this.activeProfile = { ...this.profiles[role] };
+                },
+
+                getRoleLabel(role) {
+                    const labels = { student: 'นักเรียน', teacher: 'คุณครูประจำชั้น', director: 'ผู้อำนวยการโรงเรียน' };
+                    return labels[role] || role;
+                },
+
+                loadLocalDemoData() {
+                    const localData = localStorage.getItem('buengngam_merit_items');
+                    if (localData) {
+                        this.merits = JSON.parse(localData);
+                    } else {
+                        // Default Demo Records
+                        this.merits = [
+                            {
+                                id: 'demo-1',
+                                studentName: 'เด็กชายสมชาย ดีเยี่ยม',
+                                title: 'เก็บกระเป๋าสตางค์ส่งคืนเจ้าของ',
+                                category: 'ซื่อสัตย์สุจริต',
+                                date: '2026-11-10',
+                                detail: 'พบกระเป๋าสตางค์ตกอยู่ที่โรงอาหาร มีเงินสด 500 บาท ได้นำส่งคุณครูเวรเพื่อประกาศหาเจ้าของ',
+                                image: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&auto=format&fit=crop&q=80',
+                                status: 'verified', // pending, verified, approved, rejected
+                                teacherComment: 'ขอชื่นชมในความซื่อสัตย์สุจริต เป็นตัวอย่างที่ดีแก่น้องๆ'
+                            },
+                            {
+                                id: 'demo-2',
+                                studentName: 'เด็กหญิงกานดา ใจดี',
+                                title: 'ช่วยทำความสะอาดห้องเรียนประจำวัน',
+                                category: 'จิตสาธารณะ/บำเพ็ญประโยชน์',
+                                date: '2026-11-12',
+                                detail: 'ช่วยคุณครูจัดโต๊ะเก้าอี้และกวาดขยะหลังเลิกเรียนโดยไม่ต้องร้องขอ',
+                                image: '',
+                                status: 'approved',
+                                teacherComment: 'ทำด้วยความตั้งใจ ขยันขันแข็ง'
+                            }
+                        ];
+                        this.saveLocalData();
+                    }
+                },
+
+                saveLocalData() {
+                    localStorage.setItem('buengngam_merit_items', JSON.stringify(this.merits));
+                },
+
+                // Initialize Firebase dynamically
+                async initFirebase(config) {
+                    try {
+                        if (!window.FirebaseModule) return;
+                        const { initializeApp, getApps, getFirestore, collection, onSnapshot } = window.FirebaseModule;
+
+                        let app = getApps().length === 0 ? initializeApp(config) : getApps()[0];
+                        const db = getFirestore(app);
+
+                        // Real-time listener
+                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'buengngam-merit-app';
+                        const meritsRef = collection(db, 'artifacts', appId, 'public', 'data', 'merits');
+
+                        onSnapshot(meritsRef, (snapshot) => {
+                            let items = [];
+                            snapshot.forEach(doc => {
+                                items.push({ id: doc.id, ...doc.data() });
+                            });
+                            this.merits = items;
+                            this.cloudConnected = true;
+                        }, (error) => {
+                            console.warn("Firestore error, fallback to local:", error);
+                            this.cloudConnected = false;
+                            this.loadLocalDemoData();
+                        });
+
+                    } catch (e) {
+                        console.error("Firebase Init Error:", e);
+                        this.cloudConnected = false;
+                        this.loadLocalDemoData();
+                    }
+                },
+
+                saveFirebaseConfig() {
+                    try {
+                        const config = JSON.parse(this.customFirebaseConfig);
+                        localStorage.setItem('buengngam_firebase_config', JSON.stringify(config));
+                        this.showConfigModal = false;
+                        this.initFirebase(config);
+                    } catch (e) {
+                        alert('รูปแบบ JSON ของ Firebase Config ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+                    }
+                },
+
+                clearFirebaseConfig() {
+                    localStorage.removeItem('buengngam_firebase_config');
+                    this.customFirebaseConfig = '';
+                    this.cloudConnected = false;
+                    this.showConfigModal = false;
+                    this.loadLocalDemoData();
+                },
+
+                // AI Text Enhancer Simulation
+                aiEnhanceText() {
+                    if (!this.form.title) {
+                        alert('กรุณากรอกหัวข้อความดีก่อนกดให้ AI ช่วยเรียบเรียง');
+                        return;
+                    }
+                    const enhancedTemplates = [
+                        `ข้าพเจ้าได้ตั้งใจปฏิบัติกิจกรรม "${this.form.title}" ด้วยความเต็มใจและมีจิตสาธารณะ ส่งผลให้เกิดประโยชน์และความสุขแก่ผู้อื่นในโรงเรียน`,
+                        `ข้าพเจ้าได้กระทำความดีในกิจกรรม "${this.form.title}" ด้วยความซื่อสัตย์สุจริตและยึดมั่นในคุณธรรม เพื่อเป็นแบบอย่างที่ดีแก่เพื่อนนักเรียน`,
+                        `ข้าพเจ้าได้ร่วมบำเพ็ญประโยชน์ในกิจกรรม "${this.form.title}" เพื่อสร้างสรรค์บรรยากาศน่าอยู่และความสามัคคีในโรงเรียนบึงงามพัฒนา`
+                    ];
+                    this.form.detail = enhancedTemplates[Math.floor(Math.random() * enhancedTemplates.length)];
+                },
+
+                handleFileUpload(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    // Compress Image via Canvas
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.src = e.target.result;
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            const maxWidth = 600;
+                            const scale = maxWidth / img.width;
+                            canvas.width = maxWidth;
+                            canvas.height = img.height * scale;
+
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            this.form.image = canvas.toDataURL('image/jpeg', 0.7);
+                        };
+                    };
+                    reader.readAsDataURL(file);
+                },
+
+                async saveMerit() {
+                    if (!this.form.title) return;
+                    this.isSubmitting = true;
+
+                    const newItem = {
+                        studentName: this.activeProfile.name,
+                        title: this.form.title,
+                        category: this.form.category,
+                        date: this.form.date,
+                        detail: this.form.detail,
+                        image: this.form.image,
+                        status: 'pending',
+                        createdAt: new Date().toISOString()
+                    };
+
+                    if (this.cloudConnected && window.FirebaseModule) {
+                        try {
+                            const { getFirestore, collection, addDoc } = window.FirebaseModule;
+                            const db = getFirestore();
+                            const appId = typeof __app_id !== 'undefined' ? __app_id : 'buengngam-merit-app';
+                            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'merits'), newItem);
+                        } catch (e) {
+                            console.error("Save cloud error:", e);
+                        }
+                    } else {
+                        newItem.id = 'merit-' + Date.now();
+                        this.merits.unshift(newItem);
+                        this.saveLocalData();
+                    }
+
+                    // Reset Form
+                    this.form.title = '';
+                    this.form.detail = '';
+                    this.form.image = '';
+                    this.isSubmitting = false;
+                },
+
+                async updateStatus(id, newStatus, comment = '') {
+                    if (this.cloudConnected && window.FirebaseModule) {
+                        try {
+                            const { getFirestore, doc, updateDoc } = window.FirebaseModule;
+                            const db = getFirestore();
+                            const appId = typeof __app_id !== 'undefined' ? __app_id : 'buengngam-merit-app';
+                            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'merits', id);
+                            await updateDoc(docRef, {
+                                status: newStatus,
+                                teacherComment: comment || ''
+                            });
+                        } catch (e) {
+                            console.error("Update status cloud error:", e);
+                        }
+                    } else {
+                        const item = this.merits.find(m => m.id === id);
+                        if (item) {
+                            item.status = newStatus;
+                            if (comment) item.teacherComment = comment;
+                            this.saveLocalData();
+                        }
+                    }
+                },
+
+                openProfileModal() {
+                    this.showProfileModal = true;
+                },
+
+                saveProfile() {
+                    this.profiles[this.currentRole] = { ...this.activeProfile };
+                    this.showProfileModal = false;
+                },
+
+                openImageModal(imgUrl) {
+                    this.modalImage = imgUrl;
+                    this.showImageModal = true;
+                },
+
+                generateCertificate(item) {
+                    this.certData = item;
+                    this.showCertModal = true;
+                },
+
+                calculateStudentPoints() {
+                    return this.merits.filter(m => m.studentName === this.activeProfile.name && (m.status === 'verified' || m.status === 'approved')).length * 10;
+                },
+
+                getUniqueStudentsCount() {
+                    const names = this.merits.map(m => m.studentName);
+                    return [...new Set(names)].length;
+                },
+
+                get filteredTeacherMerits() {
+                    if (this.teacherFilter === 'pending') return this.merits.filter(m => m.status === 'pending');
+                    if (this.teacherFilter === 'verified') return this.merits.filter(m => m.status === 'verified');
+                    return this.merits;
+                },
+
+                getStatusBadge(status) {
+                    const badges = {
+                        pending: '<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300"><i class="fa-solid fa-clock mr-1"></i>รอดำเนินการ</span>',
+                        verified: '<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300"><i class="fa-solid fa-user-check mr-1"></i>ครูรับรองแล้ว</span>',
+                        approved: '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-400"><i class="fa-solid fa-award text-gold-600 mr-1"></i>ผอ.อนุมัติแล้ว</span>',
+                        rejected: '<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-300"><i class="fa-solid fa-triangle-exclamation mr-1"></i>ส่งกลับแก้ไข</span>'
+                    };
+                    return badges[status] || status;
+                },
+
+                formatDate(dateStr) {
+                    if (!dateStr) return '';
+                    const d = new Date(dateStr);
+                    return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+                }
+            }
+        }
+    </script>
+</body>
+</html>
